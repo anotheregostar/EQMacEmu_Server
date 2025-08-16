@@ -32,7 +32,8 @@ enum {
 	invWhereBank = 0x04,
 	invWhereUnused = 0x08,
 	invWhereTrading = 0x10,
-	invWhereCursor = 0x20
+	invWhereCursor = 0x20,
+	invWhereSharedBank = 0x40 // (note: this is only checked if explicitly set)
 };
 
 // ########################################
@@ -164,11 +165,12 @@ namespace EQ
 		void dumpWornItems();
 		void dumpMob();
 		void dumpBankItems();
+		void dumpSharedBankItems();
 
-		void SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, std::string value);
-		void SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, int value);
-		void SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, float value);
-		void SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, bool value);
+		void SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, std::string value);
+		void SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, int value);
+		void SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, float value);
+		void SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, bool value);
 		std::string GetCustomItemData(int16 slot_id, std::string identifier);
 
 		inline int16 PushItem(int16 slot_id, ItemInstance *inst) { return _PutItem(slot_id, inst); }
@@ -199,6 +201,7 @@ namespace EQ
 		std::map<int16, ItemInstance*>	m_inv;		// Items in character personal inventory
 		std::map<int16, ItemInstance*>	m_bank;		// Items in character bank
 		std::map<int16, ItemInstance*>	m_trade;	// Items in a trade session
+		std::map<int16, ItemInstance*>  m_shared_bank; // Items in the shared bank
 		ItemInstQueue				m_cursor;	// Items on cursor: FIFO
 
 	private:

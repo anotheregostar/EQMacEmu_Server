@@ -37,6 +37,8 @@ namespace EQ
 
 		using Mac::invtype::POSSESSIONS_SIZE;
 		using Mac::invtype::BANK_SIZE;
+		using Mac::invtype::BANK_8_SIZE;
+		using Mac::invtype::SHARED_BANK_SIZE;
 		using Mac::invtype::TRADE_SIZE;
 		using Mac::invtype::WORLD_SIZE;
 		using Mac::invtype::LIMBO_SIZE;
@@ -81,7 +83,11 @@ namespace EQ
 
 		using Mac::invslot::BANK_BEGIN;
 		using Mac::invslot::BANK_END;
+		using Mac::invslot::BANK_8_END;
 
+		using Mac::invslot::SHARED_BANK_BEGIN;
+		using Mac::invslot::SHARED_BANK_END;
+		
 		using Mac::invslot::TRADE_BEGIN;
 		using Mac::invslot::TRADE_END;
 
@@ -129,8 +135,12 @@ namespace EQ
 		const int16 BANK_BAGS_COUNT = (invtype::BANK_SIZE * SLOT_COUNT);
 		const int16 BANK_BAGS_END = (BANK_BAGS_BEGIN + BANK_BAGS_COUNT) - 1;
 
-		const int16 BANK_BAGS_8_COUNT = 8 * SLOT_COUNT;
+		const int16 BANK_BAGS_8_COUNT = (invtype::BANK_8_SIZE * SLOT_COUNT);
 		const int16 BANK_BAGS_8_END = (BANK_BAGS_BEGIN + BANK_BAGS_8_COUNT) - 1;
+
+		using Mac::invbag::SHARED_BANK_BAGS_BEGIN;
+		using Mac::invbag::SHARED_BANK_BAGS_COUNT;
+		using Mac::invbag::SHARED_BANK_BAGS_END;
 
 		using Mac::invbag::TRADE_BAGS_BEGIN;
 		const int16 TRADE_BAGS_COUNT = invtype::TRADE_SIZE * SLOT_COUNT;

@@ -688,6 +688,21 @@ void Client::CompleteConnect()
 		return;
 	}
 
+	// Begins the shared bank negotiation with the client. Server sends how many slots are possible, waits to hear what the client supports.
+	// Upon client response, server will (optionally) enable the bank and stream the contents.
+	int shared_bank_bags = RuleI(Quarm, SharedBankBags);
+	if (shared_bank_bags >= 0)
+	{
+		auto* sb_init_app = new EQApplicationPacket(OP_SpawnAppearance, sizeof(SpawnAppearance_Struct));
+		SpawnAppearance_Struct* sb_init = (SpawnAppearance_Struct*)sb_init_app->pBuffer;
+		sb_init->spawn_id = 0;
+		sb_init->type = AppearanceType::ClientDllMessage;
+		sb_init->parameter = ((uint32)ClientFeature::SharedBankBagsSupported << 16) | (uint32)shared_bank_bags;
+		sb_init_app->priority = 6;
+		QueuePacket(sb_init_app);
+		safe_delete(sb_init_app);
+	}
+
 	if (GetGM() && IsDevToolsEnabled()) {
 		ShowDevToolsMenu();
 	}
@@ -926,6 +941,45 @@ void Client::Handle_Connect_OP_SpawnAppearance(const EQApplicationPacket *app)
 			}
 			break;
 		}
+		case ClientFeature::SharedBankBagsSupported:
+		{
+			if (GetSharedBankMode() != 0 || GetSharedBankBagsCount() != 0)
+				return; // Already initialized
+
+			int max_shared_bank = RuleI(Quarm, SharedBankBags);
+			uint8 bags = 0;
+			uint8 mode = 0;
+
+			if (IsSelfFoundAny())
+			{
+				bags = 0;
+				mode = 2; // disabled (with self-found error message)
+			}
+			else if (max_shared_bank >= 0)
+			{
+				bags = feature_value > max_shared_bank ? max_shared_bank : feature_value;
+				mode = 1; // enabled
+			}
+			feature_value = bags; // response value
+
+			SetSharedBankBagsCount(bags);
+			SetSharedBankMode(mode);
+
+			// Also send Mode Packet to Client
+			auto outapp = new EQApplicationPacket(OP_SpawnAppearance, sizeof(SpawnAppearance_Struct));
+			SpawnAppearance_Struct* sa_mode = (SpawnAppearance_Struct*)outapp->pBuffer;
+			sa_mode->spawn_id = 0;
+			sa_mode->type = sa->type;
+			sa_mode->parameter = (1 << 31) | ((uint32)ClientFeature::SharedBankMode << 16) | (uint32)mode;
+			outapp->priority = 6;
+			QueuePacket(outapp);
+			safe_delete(outapp);
+
+			if (mode == 1)
+			{
+				BulkSendSharedBankItems();
+			}
+		}		
 		// -----------------------------------------------------------------------------------------------------------------------------------
 		// End of Client/Server known feature messages
 		// -----------------------------------------------------------------------------------------------------------------------------------
@@ -1091,6 +1145,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	uint32 i;
 	std::string query;
 
+	uint32 acct_id = AccountID();	
 	uint32 cid = CharacterID();
 	character_id = cid; /* Global character_id reference */
 
@@ -1128,7 +1183,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	}
 
 	/* Do not write to the PP prior to this otherwise it will just be overwritten when it's loaded from the DB */
-	loaditems = database.GetInventory(cid, &m_inv); /* Load Character Inventory */
+	loaditems = database.GetInventory(acct_id, cid, &m_inv); /* Load Character Inventory */
 	database.LoadCharacterBindPoint(cid, &m_pp); /* Load Character Bind */
 	database.LoadCharacterCurrency(cid, &m_pp); /* Load Character Currency into PP */
 	database.LoadCharacterData(cid, &m_pp, &m_epp); /* Load Character Data from DB into PP as well as E_PP */
@@ -1848,7 +1903,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 				int16 free_slot_id = m_inv.FindFreeSlot(inst->IsType(EQ::item::ItemClassBag), true, inst->GetItem()->Size, is_arrow);
 				Log(Logs::Detail, Logs::Inventory, "Incomplete Trade Transaction: Moving %s from slot %i to %i", inst->GetItem()->Name, slot_id, free_slot_id);
 				PutItemInInventory(free_slot_id, *inst, false);
-				database.SaveInventory(character_id, nullptr, slot_id);
+				database.SaveInventory(account_id, character_id, nullptr, slot_id);
 				safe_delete(inst);
 			}
 		}

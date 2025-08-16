@@ -57,10 +57,10 @@ public:
 	/*
 	* Character InventoryProfile
 	*/
-	bool	SaveInventory(uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id);
-	bool    DeleteInventorySlot(uint32 char_id, int16 slot_id);
-	bool    UpdateInventorySlot(uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id);
-	bool	GetInventory(uint32 char_id, EQ::InventoryProfile* inv);
+	bool	SaveInventory(uint32 account_id, uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id);
+	bool    DeleteInventorySlot(uint32 account_id, uint32 char_id, int16 slot_id);
+	bool    UpdateInventorySlot(uint32 account_id, uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id);
+	bool	GetInventory(uint32 account_id, uint32 char_id, EQ::InventoryProfile* inv);
 	bool	GetInventory(uint32 account_id, char* name, EQ::InventoryProfile* inv);
 	bool	SetStartingItems(PlayerProfile_Struct* pp, EQ::InventoryProfile* inv, uint32 si_race, uint32 si_class, uint32 si_deity, uint32 si_current_zone, char* si_name, int admin);
 

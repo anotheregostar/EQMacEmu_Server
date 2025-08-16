@@ -40,7 +40,8 @@ namespace Mac
 		using namespace enum_;
 
 		const int16 POSSESSIONS_SIZE = 30;
-		const int16 BANK_SIZE = 8;
+		const int16 BANK_SIZE = 30;
+		const int16 BANK_8_SIZE = 8;
 		const int16 TRADE_SIZE = 8;
 		const int16 WORLD_SIZE = 10;
 		const int16 LIMBO_SIZE = 36;
@@ -48,6 +49,7 @@ namespace Mac
 		const int16 CORPSE_SIZE = POSSESSIONS_SIZE;
 		const int16 BAZAAR_SIZE = 80;
 		const int16 INSPECT_SIZE = 21;
+		const int16 SHARED_BANK_SIZE = 30;
 
 		const int16 TRADE_NPC_SIZE = 4; // defined by implication
 
@@ -125,7 +127,11 @@ namespace Mac
 
 		const int16 BANK_BEGIN = 2000;
 		const int16 BANK_END = (BANK_BEGIN + invtype::BANK_SIZE) - 1;
+		const int16 BANK_8_END = (BANK_BEGIN + invtype::BANK_8_SIZE) - 1;
 
+		const int16 SHARED_BANK_BEGIN = 2500;
+		const int16 SHARED_BANK_END = (SHARED_BANK_BEGIN + invtype::SHARED_BANK_SIZE) - 1;
+		
 		const int16 TRADE_BEGIN = 3000;
 		const int16 TRADE_END = (TRADE_BEGIN + invtype::TRADE_SIZE) - 1;
 
@@ -165,6 +171,10 @@ namespace Mac
 		const int16 BANK_BAGS_BEGIN = 2030;
 		const int16 BANK_BAGS_COUNT = (invtype::BANK_SIZE * SLOT_COUNT);
 		const int16 BANK_BAGS_END = (BANK_BAGS_BEGIN + BANK_BAGS_COUNT) - 1;
+
+		const int16 SHARED_BANK_BAGS_BEGIN = 2530;
+		const int16 SHARED_BANK_BAGS_COUNT = (invtype::SHARED_BANK_SIZE * SLOT_COUNT);
+		const int16 SHARED_BANK_BAGS_END = (SHARED_BANK_BAGS_BEGIN + SHARED_BANK_BAGS_COUNT) - 1;
 
 		const int16 TRADE_BAGS_BEGIN = 3030;
 		const int16 TRADE_BAGS_COUNT = invtype::TRADE_SIZE * SLOT_COUNT;

@@ -517,7 +517,8 @@ public:
 	void MovePC(const char* zonename, float x, float y, float z, float heading, uint8 ignorerestrictions = 0, ZoneMode zm = ZoneSolicited);
 	void MovePC(uint32 zoneID, float x, float y, float z, float heading, uint8 ignorerestrictions = 0, ZoneMode zm = ZoneSolicited);
 	void MovePC(float x, float y, float z, float heading, uint8 ignorerestrictions = 0, ZoneMode zm = ZoneSolicited);
-	bool CheckLoreConflict(const EQ::ItemData* item);
+	bool CheckLoreConflict(const EQ::ItemData* item, uint8 inv_where = ~invWhereUnused);
+	bool CheckLoreConflictWithSharedBank(const EQ::ItemData* item, int16 ignore_slot_id = -1);
 	void ChangeLastName(const char* in_lastname);
 	void SacrificeConfirm(Mob* caster);
 	void Sacrifice(Mob* caster);
@@ -743,6 +744,7 @@ public:
 	void	SendItemPacket(int16 slot_id, const EQ::ItemInstance* inst, ItemPacketType packet_type, int16 fromid = 0, int16 toid = 0, int16 skill = 0);
 	bool	IsValidSlot(uint32 slot);
 	bool	IsBankSlot(uint32 slot);
+	bool    IsSharedBankSlot(uint32 slot);
 
 	inline bool IsTrader() const { return(Trader); }
 	eqFilterMode GetFilter(eqFilterType filter_id) const { return ClientFilters[filter_id]; }
@@ -1163,6 +1165,11 @@ public:
 	bool GetBuffStackingPatch() const { return m_buff_stacking_patch; }
 	void SetBuffStackingPatch(bool enabled) { m_buff_stacking_patch = enabled; }
 	void SetSongWindowSlots(uint8 song_window_buff_slots) { m_song_window_slots = song_window_buff_slots; }
+
+	uint8 GetSharedBankBagsCount() { return m_shared_bank_bags_count; }
+	void SetSharedBankBagsCount(uint8 count) { m_shared_bank_bags_count = count; }
+	uint8 GetSharedBankMode() { return m_shared_bank_mode; }
+	void SetSharedBankMode(uint8 mode) { m_shared_bank_mode = mode; }
 private:
 	bool dev_tools_enabled;
 
@@ -1235,6 +1242,7 @@ private:
 	Timer m_client_npc_aggro_scan_timer;
 	void CheckClientToNpcAggroTimer();
 
+	void BulkSendSharedBankItems();	
 	void BulkSendInventoryItems();
 	void SendCursorItems();
 	void FillPPItems();
@@ -1338,6 +1346,9 @@ private:
 	
 	uint16 m_dll_version = 0; // Sent by newer versions of the eqgame.dll when connecting to a zone.
 	bool m_old_feature_detected = false; // If set before ConnectComplete() automatically notifies the client with an out-of-date message.
+
+	uint8 m_shared_bank_bags_count = 0;
+	uint8 m_shared_bank_mode = 0; // 0 = Disabled, 1 = Enabled, 2 = Disabled (Self-Found error msg)
 };
 
 #endif

@@ -189,6 +189,7 @@ RULE_CATEGORY_END()
 
 RULE_CATEGORY(Quarm)
 RULE_INT(Quarm, WarnDllVersionBelow, 1, "Sends a Client-out-of-date warning message to clients below this dll version.")
+RULE_INT(Quarm, SharedBankBags, 10, "The number of shared bank slots the client can deposit to. '0' will only allow withdrawing. '-1' competely disables the client.")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY( Map )
