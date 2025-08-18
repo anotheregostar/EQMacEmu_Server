@@ -168,6 +168,9 @@ public:
 	Client(EQStreamInterface * ieqs);
 	~Client();
 
+	// Adding stub to always return false for IsSelfFoundAny() since this is not used for EQA.
+	bool IsSelfFoundAny() const;
+	
 	bool is_client_moving;
 
 	bool IsDevToolsEnabled() const;

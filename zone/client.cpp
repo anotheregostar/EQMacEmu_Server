@@ -7238,3 +7238,9 @@ void Client::CheckItemDiscoverability(uint32 item_id)
 
 	DiscoverItem(item_id);
 }
+
+/* ===== Self-Found stub (server disabled) ===== */
+bool Client::IsSelfFoundAny() const
+{
+    return false; // Self-Found disabled on this server
+}
