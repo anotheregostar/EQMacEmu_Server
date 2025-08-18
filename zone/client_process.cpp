@@ -707,6 +707,48 @@ void Client::OnDisconnect(bool hard_disconnect) {
 
 }
 
+void Client::BulkSendSharedBankItems()
+{
+	EQ::OutBuffer ob;
+	EQ::OutBuffer::pos_type last_pos = ob.tellp();
+
+	// Shared Bank items
+	for (int16 slot_id = EQ::invslot::SHARED_BANK_BEGIN; slot_id <= EQ::invslot::SHARED_BANK_END; slot_id++) {
+		const EQ::ItemInstance* inst = m_inv[slot_id];
+		if (!inst)
+			continue;
+
+		inst->Serialize(ob, slot_id);
+
+		if (ob.tellp() == last_pos)
+			Log(Logs::General, Logs::Inventory, "Serialization failed on item slot %d during BulkSendSharedBankItems.  Item skipped.", slot_id);
+
+		last_pos = ob.tellp();
+	}
+
+	//Items in Bank Bags
+	for (int16 slot_id = EQ::invbag::SHARED_BANK_BAGS_BEGIN; slot_id <= EQ::invbag::SHARED_BANK_BAGS_END; slot_id++) {
+		const EQ::ItemInstance* inst = m_inv[slot_id];
+		if (!inst)
+			continue;
+
+		inst->Serialize(ob, slot_id);
+
+		if (ob.tellp() == last_pos)
+			Log(Logs::General, Logs::Inventory, "Serialization failed on item slot %d during BulkSendSharedBankItems.  Item skipped.", slot_id);
+
+		last_pos = ob.tellp();
+	}
+
+	std::string serialized = ob.str();
+
+	EQApplicationPacket* outapp = new EQApplicationPacket(OP_CharInventory, serialized.size());
+	memcpy(outapp->pBuffer, serialized.c_str(), serialized.size());
+
+	QueuePacket(outapp);
+	safe_delete(outapp);
+}
+
 // Sends the client complete inventory used in character login
 void Client::BulkSendInventoryItems() {
 
@@ -853,7 +895,7 @@ void Client::FillPPItems()
 
 	i = 0;
 	memset(m_pp.bankinvitemproperties, 0, sizeof(ItemProperties_Struct)*8);
-	for (slot_id = EQ::invslot::BANK_BEGIN; slot_id <= EQ::invslot::BANK_END; slot_id++) 
+	for (slot_id = EQ::invslot::BANK_BEGIN; slot_id <= EQ::invslot::BANK_8_END; slot_id++)
 	{
 		const EQ::ItemInstance* inst = m_inv[slot_id];
 		if (inst){
@@ -868,7 +910,7 @@ void Client::FillPPItems()
 
 	i = 0;
 	memset(m_pp.bankbagitemproperties, 0, sizeof(ItemProperties_Struct)*80);
-	for (slot_id = EQ::invbag::BANK_BAGS_BEGIN; slot_id <= EQ::invbag::BANK_BAGS_END; slot_id++) 
+	for (slot_id = EQ::invbag::BANK_BAGS_BEGIN; slot_id <= EQ::invbag::BANK_BAGS_8_END; slot_id++)
 	{
 		const EQ::ItemInstance* inst = m_inv[slot_id];
 		if (inst){

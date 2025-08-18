@@ -139,17 +139,43 @@ uint32 Client::NukeItem(uint32 itemnum, uint8 where_to_check) {
 }
 
 
-bool Client::CheckLoreConflict(const EQ::ItemData* item) {
+bool Client::CheckLoreConflict(const EQ::ItemData* item, uint8 inv_where) {
 	if (!item)
 		return false;
 	if (item->Lore[0] != '*' && item->Lore[0] != '#')
 		return false;
 
 	if (item->Lore[0] == '*')	// Standard lore items; look everywhere except unused, return the result
-		return (m_inv.HasItem(item->ID, 0, ~invWhereUnused) != INVALID_INDEX);
+		return (m_inv.HasItem(item->ID, 0, inv_where) != INVALID_INDEX);
 
 	else if(item->Lore[0] == '#')
 		return (m_inv.HasArtifactItem() != INVALID_INDEX);
+
+	return false;
+
+}
+
+bool Client::CheckLoreConflictWithSharedBank(const EQ::ItemData* item, int16 ignore_slot_id) {
+
+	if (!item)
+		return false;
+
+	if (item->Lore[0] == '*')
+	{
+		int16 slot = m_inv.HasItem(item->ID, 0, invWhereSharedBank);
+		if (slot == INVALID_INDEX)
+			return false;
+		if (ignore_slot_id == slot)
+			return false;
+		if (slot >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && slot <= EQ::invbag::SHARED_BANK_BAGS_END)
+		{
+			int16 parent_bag_idx = (slot - EQ::invbag::SHARED_BANK_BAGS_BEGIN) / 10;
+			int16 parent_bag_slot = EQ::invslot::SHARED_BANK_BEGIN + parent_bag_idx;
+			if (parent_bag_slot == ignore_slot_id)
+				return false;
+		}
+		return true;
+	}
 
 	return false;
 
@@ -385,7 +411,7 @@ void Client::DropItem(int16 slot_id)
 		auto s = m_inv.cursor_cbegin(), e = m_inv.cursor_cend();
 		database.SaveCursor(this, s, e);
 	} else {
-		database.SaveInventory(CharacterID(), nullptr, slot_id);
+		database.SaveInventory(AccountID(), CharacterID(), nullptr, slot_id);
 	}
 
 	if(!inst)
@@ -514,7 +540,7 @@ void Client::DeleteItemInInventory(int16 slot_id, int8 quantity, bool client_upd
 		// Save change to database
 		inst = m_inv[slot_id];
 		if(update_db)
-			database.SaveInventory(character_id, inst, slot_id);
+			database.SaveInventory(account_id, character_id, inst, slot_id);
 	}
 
 	bool returnitem = false;
@@ -668,7 +694,7 @@ bool Client::PutItemInInventory(int16 slot_id, const EQ::ItemInstance& inst, boo
 		return database.SaveCursor(this, s, e);
 	}
 	else {
-		return database.SaveInventory(this->CharacterID(), &inst, slot_id);
+		return database.SaveInventory(this->AccountID(), this->CharacterID(), &inst, slot_id);
 	}
 
 	CalcBonuses();
@@ -685,7 +711,7 @@ void Client::PutLootInInventory(int16 slot_id, const EQ::ItemInstance &inst, Loo
 		auto s = m_inv.cursor_cbegin(), e = m_inv.cursor_cend();
 		database.SaveCursor(this, s, e);
 	} else
-		database.SaveInventory(this->CharacterID(), &inst, slot_id);
+		database.SaveInventory(this->AccountID(), this->CharacterID(), &inst, slot_id);
 
 	if(bag_item_data)	// bag contents
 	{
@@ -978,7 +1004,7 @@ void Client::MoveItemCharges(EQ::ItemInstance &from, int16 to_slot, uint8 type)
 			auto s = m_inv.cursor_cbegin(), e = m_inv.cursor_cend();
 			database.SaveCursor(this, s, e);
 		} else
-			database.SaveInventory(this->CharacterID(), tmp_inst, to_slot);
+			database.SaveInventory(this->AccountID(), this->CharacterID(), tmp_inst, to_slot);
 	}
 }
 
@@ -993,6 +1019,8 @@ bool Client::IsValidSlot(uint32 slot) {
 		(slot >= EQ::invbag::GENERAL_BAGS_BEGIN && slot <= EQ::invbag::CURSOR_BAG_END) ||
 		(slot >= EQ::invslot::BANK_BEGIN && slot <= EQ::invslot::BANK_END) ||
 		(slot >= EQ::invbag::BANK_BAGS_BEGIN && slot <= EQ::invbag::BANK_BAGS_END) ||
+		(slot >= EQ::invslot::SHARED_BANK_BEGIN && slot <= EQ::invslot::SHARED_BANK_END) ||
+		(slot >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && slot <= EQ::invbag::SHARED_BANK_BAGS_END) ||
 		(slot >= EQ::invslot::TRADE_BEGIN && slot <= EQ::invslot::TRADE_END) ||
 		(slot >= EQ::invslot::WORLD_BEGIN && slot <= EQ::invslot::WORLD_END))
 		return true;
@@ -1004,6 +1032,17 @@ bool Client::IsBankSlot(uint32 slot)
 {
 	if ((slot >= EQ::invslot::BANK_BEGIN && slot <= EQ::invslot::BANK_END) ||
 		(slot >= EQ::invbag::BANK_BAGS_BEGIN && slot <= EQ::invbag::BANK_BAGS_END))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool Client::IsSharedBankSlot(uint32 slot)
+{
+	if ((slot >= EQ::invslot::SHARED_BANK_BEGIN && slot <= EQ::invslot::SHARED_BANK_END) ||
+		(slot >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && slot <= EQ::invbag::SHARED_BANK_BAGS_END))
 	{
 		return true;
 	}
@@ -1063,10 +1102,10 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 	int16 src_slot_id = (int16)move_in->from_slot;
 	int16 dst_slot_id = (int16)move_in->to_slot;
 
-	if(IsBankSlot(src_slot_id) ||
-		IsBankSlot(dst_slot_id) ||
-		IsBankSlot(src_slot_check) ||
-		IsBankSlot(dst_slot_check))
+	if(IsBankSlot(src_slot_id) || IsSharedBankSlot(src_slot_id) ||
+		IsBankSlot(dst_slot_id) || IsSharedBankSlot(dst_slot_id) ||
+		IsBankSlot(src_slot_check) || IsSharedBankSlot(src_slot_check) ||
+		IsBankSlot(dst_slot_check) || IsSharedBankSlot(dst_slot_check))
 	{
 		uint32 distance = 0;
 		NPC *banker = entity_list.GetClosestBanker(this, distance);
@@ -1104,10 +1143,194 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 			Log(Logs::General, Logs::Inventory, error.c_str());
 			return false;
 		}
-	}
+
+		if (src_inst && src_inst->GetItem())
+		{
+			if (IsSharedBankSlot(src_slot_id)) // Don't allow withdrawing duplicate lore item from shared bank
+			{
+				if (IsSelfFoundAny())
+					return false;
+
+				if (dst_slot_id != 0)
+					return false; // Sanity check - Can only move shared bank items to/from cursor
+
+				int inv_where = ~invWhereUnused & ~invWhereCursor; // Allow Lore Item swap if we're swapping the same item
+				if (CheckLoreConflict(src_inst->GetItem(), inv_where))
+				{
+					Message_StringID(Chat::Red, PICK_LORE);
+					return false;
+				}
+				if (src_inst->IsClassBag())
+				{
+					for (uint8 i = EQ::invbag::SLOT_BEGIN; i <= EQ::invbag::SLOT_END; i++)
+					{
+						EQ::ItemInstance* contents_i = src_inst->GetItem(i);
+						if (contents_i && contents_i->GetItem() && CheckLoreConflict(contents_i->GetItem(), inv_where))
+						{
+							Message_StringID(Chat::Red, PICK_LORE);
+							return false;
+						}
+					}
+				}
+				if (src_slot_id >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && src_slot_id <= EQ::invbag::SHARED_BANK_BAGS_END)
+				{
+					int16 shared_bank_bag_slot_id = EQ::InventoryProfile::CalcSlotId(src_slot_id); // get parent bag
+					EQ::ItemInstance* shared_bank_bag = m_inv.GetItem(shared_bank_bag_slot_id);
+					if (!shared_bank_bag || !shared_bank_bag->IsClassBag())
+						return false; // No parent bag, can't modify internal slot
+				}
+			}
+			else if (IsSharedBankSlot(dst_slot_id)) // Don't allow depositing duplicate lore item to shared bank
+			{
+				if (IsSelfFoundAny())
+					return false;
+
+				if (src_slot_id != 0)
+					return false;
+
+				int shared_bank_slots = RuleI(Quarm, SharedBankBags);
+				if (shared_bank_slots <= 0)
+					return false; // Bank is disabled, cannot deposit at this time
+
+				if (!src_inst->GetItem()->NoDrop)
+				{
+					Message_StringID(Chat::Yellow, 12921); // Item cannot be dropped.
+					return false;
+				}
+				if (GetInv().CheckNoDrop(src_slot_id))
+				{
+					Message_StringID(Chat::Yellow, 12922); // Bag contains no drop.
+					return false;
+				}
+				if (dst_slot_id >= EQ::invslot::SHARED_BANK_BEGIN && dst_slot_id <= EQ::invslot::SHARED_BANK_END)
+				{
+					if (dst_slot_id >= EQ::invslot::SHARED_BANK_BEGIN + shared_bank_slots)
+						return false; // This shared bank slot is not enabled
+				}
+				if (dst_slot_id >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && dst_slot_id <= EQ::invbag::SHARED_BANK_BAGS_END)
+				{
+					int16 shared_bank_bag_slot_id = EQ::InventoryProfile::CalcSlotId(dst_slot_id); // get parent bag
+					if (shared_bank_bag_slot_id >= EQ::invslot::SHARED_BANK_BEGIN + shared_bank_slots)
+						return false; // This shared bank slot is not enabled
+					EQ::ItemInstance* shared_bank_bag = m_inv.GetItem(shared_bank_bag_slot_id);
+					if (!shared_bank_bag || !shared_bank_bag->IsClassBag())
+						return false; // No parent bag, can't modify internal slot
+				}
+				if (CheckLoreConflictWithSharedBank(src_inst->GetItem(), dst_slot_id))
+				{
+					Message(Chat::Red, "You cannot store a Lore Item that is already in your shared bank.");
+					return false;
+				}
+				if (src_inst->IsClassBag())
+				{
+					for (uint8 i = EQ::invbag::SLOT_BEGIN; i <= EQ::invbag::SLOT_END; i++)
+					{
+						EQ::ItemInstance* contents_i = src_inst->GetItem(i);
+						if (contents_i && contents_i->GetItem() && CheckLoreConflictWithSharedBank(contents_i->GetItem(), dst_slot_id))
+						{
+							Message(Chat::Red, "You cannot store a Lore Item that is already in your shared bank.");
+							return false;
+						}
+					}
+				}
+			}
+		}
+	}		
 	if (dst_inst) {
 		Log(Logs::Detail, Logs::Inventory, "Dest slot %d has item %s (%d) with %d charges in it.", dst_slot_id, dst_inst->GetItem()->Name, dst_inst->GetItem()->ID, dst_inst->GetCharges());
 		dstitemid = dst_inst->GetItem()->ID;
+	
+		if (dst_inst->GetItem())
+		{
+			if (IsSharedBankSlot(dst_slot_id)) // Don't allow withdrawing duplicate lore item from shared bank
+			{
+				if (IsSelfFoundAny())
+					return false;
+
+				if (src_slot_id != 0)
+					return false; // Sanity check - Can only move shared bank items to/from cursor
+
+				int inv_where = ~invWhereUnused & ~invWhereCursor; // Allow Lore Item swap if we're swapping the same item
+				if (CheckLoreConflict(dst_inst->GetItem(), inv_where))
+				{
+					Message_StringID(Chat::Red, PICK_LORE);
+					return false;
+				}
+				if (dst_inst->IsClassBag())
+				{
+					for (uint8 i = EQ::invbag::SLOT_BEGIN; i <= EQ::invbag::SLOT_END; i++)
+					{
+						EQ::ItemInstance* contents_i = dst_inst->GetItem(i);
+						if (contents_i && contents_i->GetItem() && CheckLoreConflict(contents_i->GetItem(), inv_where))
+						{
+							Message_StringID(Chat::Red, PICK_LORE);
+							return false;
+						}
+					}
+				}
+				if (dst_slot_id >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && dst_slot_id <= EQ::invbag::SHARED_BANK_BAGS_END)
+				{
+					int16 shared_bank_bag_slot_id = EQ::InventoryProfile::CalcSlotId(dst_slot_id); // get parent bag
+					EQ::ItemInstance* shared_bank_bag = m_inv.GetItem(shared_bank_bag_slot_id);
+					if (!shared_bank_bag || !shared_bank_bag->IsClassBag())
+						return false; // No parent bag, can't modify internal slot
+				}
+			}
+			else if (IsSharedBankSlot(src_slot_id)) // Don't allow depositing duplicate lore item to shared bank
+			{
+				if (IsSelfFoundAny())
+					return false;
+
+				if (dst_slot_id != 0)
+					return false;
+
+				int shared_bank_slots = RuleI(Quarm, SharedBankBags);
+				if (shared_bank_slots <= 0)
+					return false; // Bank is disabled, cannot deposit at this time
+
+				if (!dst_inst->GetItem()->NoDrop)
+				{
+					Message_StringID(Chat::Yellow, 12921); // Item cannot be dropped.
+					return false;
+				}
+				if (GetInv().CheckNoDrop(dst_slot_id))
+				{
+					Message_StringID(Chat::Yellow, 12922); // Bag contains no drop.
+					return false;
+				}
+				if (src_slot_id >= EQ::invslot::SHARED_BANK_BEGIN && src_slot_id <= EQ::invslot::SHARED_BANK_END)
+				{
+					if (src_slot_id >= EQ::invslot::SHARED_BANK_BEGIN + shared_bank_slots)
+						return false; // This shared bank slot is not enabled
+				}
+				if (src_slot_id >= EQ::invbag::SHARED_BANK_BAGS_BEGIN && src_slot_id <= EQ::invbag::SHARED_BANK_BAGS_END)
+				{
+					int16 shared_bank_bag_slot_id = EQ::InventoryProfile::CalcSlotId(src_slot_id); // get parent bag
+					if (shared_bank_bag_slot_id >= EQ::invslot::SHARED_BANK_BEGIN + shared_bank_slots)
+						return false; // This shared bank slot is not enabled
+					EQ::ItemInstance* shared_bank_bag = m_inv.GetItem(shared_bank_bag_slot_id);
+					if (!shared_bank_bag || !shared_bank_bag->IsClassBag())
+						return false; // No parent bag, can't modify internal slot
+				}
+				if (CheckLoreConflictWithSharedBank(dst_inst->GetItem(), src_slot_id))
+				{
+					Message(Chat::Red, "You cannot store a Lore Item that is already in your shared bank.");
+					return false;
+				}
+				if (dst_inst->IsClassBag())
+				{
+					for (uint8 i = EQ::invbag::SLOT_BEGIN; i <= EQ::invbag::SLOT_END; i++)
+					{
+						EQ::ItemInstance* contents_i = dst_inst->GetItem(i);
+						if (contents_i && contents_i->GetItem() && CheckLoreConflictWithSharedBank(contents_i->GetItem(), src_slot_id))
+						{
+							Message(Chat::Red, "You cannot store a Lore Item that is already in your shared bank.");
+							return false;
+						}
+					}
+				}
+			}
+		}
 	}
 	if (Trader && srcitemid>0){
 		EQ::ItemInstance* srcbag;
@@ -1286,7 +1509,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 				auto s = m_inv.cursor_cbegin(), e = m_inv.cursor_cend();
 				database.SaveCursor(this, s, e);
 			} else
-				database.SaveInventory(character_id, m_inv[src_slot_id], src_slot_id);
+				database.SaveInventory(account_id, character_id, m_inv[src_slot_id], src_slot_id);
 
 			return true;
 		}
@@ -1404,7 +1627,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 				if (src_inst->GetCharges() < 1)
 				{
 					Log(Logs::Detail, Logs::Inventory, "Dest (%d) now has %d charges, source (%d) was entirely consumed. (%d moved)", dst_slot_id, dst_inst->GetCharges(), src_slot_id, usedcharges);
-					database.SaveInventory(CharacterID(),nullptr,src_slot_id);
+					database.SaveInventory(AccountID(), CharacterID(),nullptr,src_slot_id);
 					m_inv.DeleteItem(src_slot_id);
 				} else {
 					Log(Logs::Detail, Logs::Inventory, "Dest (%d) now has %d charges, source (%d) has %d (%d moved)", dst_slot_id, dst_inst->GetCharges(), src_slot_id, src_inst->GetCharges(), usedcharges);
@@ -1510,7 +1733,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 		auto s = m_inv.cursor_cbegin(), e = m_inv.cursor_cend();
 		database.SaveCursor(this, s, e);
 	} else
-		database.SaveInventory(character_id, m_inv.GetItem(src_slot_id), src_slot_id);
+		database.SaveInventory(account_id, character_id, m_inv.GetItem(src_slot_id), src_slot_id);
 
 	if (dst_slot_id == EQ::invslot::slotCursor) {
 		auto s = m_inv.cursor_cbegin(), e = m_inv.cursor_cend();
@@ -1519,7 +1742,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 	} 
 	else
 	{
-		database.SaveInventory(character_id, m_inv.GetItem(dst_slot_id), dst_slot_id);
+		database.SaveInventory(account_id, character_id, dst_item_instance, dst_slot_id);
 
 		// When we have a bag on the cursor filled with items that is new (zoned with it, summoned it, picked it up from the ground)
 		// the client is only aware of the bag. So, we have to send packets for each item within the bag once it is placed in the inventory.
@@ -1849,7 +2072,7 @@ void Client::RemoveDuplicateLore() {
 				slot_id,
 				GetCleanName()
 			);
-			database.SaveInventory(character_id, nullptr, slot_id);
+			database.SaveInventory(account_id, character_id, nullptr, slot_id);
 			safe_delete(inst);
 		}
 
@@ -1939,7 +2162,7 @@ void Client::MoveSlotNotAllowed(bool client_update)
 			int16 free_slot_id = m_inv.FindFreeSlot(inst->IsType(EQ::item::ItemClassBag), true, inst->GetItem()->Size, is_arrow);
 			Log(Logs::Detail, Logs::Inventory, "Slot Assignment Error: Moving %s from slot %i to %i", inst->GetItem()->Name, slot_id, free_slot_id);
 			PutItemInInventory(free_slot_id, *inst, client_update);
-			database.SaveInventory(character_id, nullptr, slot_id);
+			database.SaveInventory(account_id, character_id, nullptr, slot_id);
 			safe_delete(inst);
 		}
 	}
@@ -2080,7 +2303,7 @@ bool Client::MoveItemToInventory(EQ::ItemInstance *ItemToReturn, bool UpdateClie
 				if(UpdateClient)
 					SendItemPacket(i, InvItem, ItemPacketTrade);
 
-				database.SaveInventory(character_id, m_inv.GetItem(i), i);
+				database.SaveInventory(account_id, character_id, m_inv.GetItem(i), i);
 
 				ItemToReturn->SetCharges(ItemToReturn->GetCharges() - ChargesToMove);
 
@@ -2112,7 +2335,7 @@ bool Client::MoveItemToInventory(EQ::ItemInstance *ItemToReturn, bool UpdateClie
 							SendItemPacket(BaseSlotID + BagSlot, m_inv.GetItem(BaseSlotID + BagSlot),
 										ItemPacketTrade);
 
-						database.SaveInventory(character_id, m_inv.GetItem(BaseSlotID + BagSlot),
+						database.SaveInventory(account_id, character_id, m_inv.GetItem(BaseSlotID + BagSlot),
 										BaseSlotID + BagSlot);
 
 						ItemToReturn->SetCharges(ItemToReturn->GetCharges() - ChargesToMove);
@@ -2138,7 +2361,7 @@ bool Client::MoveItemToInventory(EQ::ItemInstance *ItemToReturn, bool UpdateClie
 			if(UpdateClient)
 				SendItemPacket(i, ItemToReturn, ItemPacketTrade);
 
-			database.SaveInventory(character_id, m_inv.GetItem(i), i);
+			database.SaveInventory(account_id, character_id, m_inv.GetItem(i), i);
 
 			Log(Logs::Detail, Logs::Inventory, "Char: %s Storing in main inventory slot %i", GetName(), i);
 
@@ -2161,7 +2384,7 @@ bool Client::MoveItemToInventory(EQ::ItemInstance *ItemToReturn, bool UpdateClie
 					if(UpdateClient)
 						SendItemPacket(BaseSlotID + BagSlot, ItemToReturn, ItemPacketTrade);
 
-					database.SaveInventory(character_id, m_inv.GetItem(BaseSlotID + BagSlot), BaseSlotID + BagSlot);
+					database.SaveInventory(account_id, character_id, m_inv.GetItem(BaseSlotID + BagSlot), BaseSlotID + BagSlot);
 
 					Log(Logs::Detail, Logs::Inventory, "Char: %s Storing in bag slot %i", GetName(), BaseSlotID + BagSlot);
 
@@ -2186,7 +2409,7 @@ bool Client::InterrogateInventory(Client* requester, bool log, bool silent, bool
 		return false;
 
 	std::map<int16, const EQ::ItemInstance*> instmap;
-
+void EQ::InventoryProfile::SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, std::string value) {
 	// build reference map
 	for (int16 index = EQ::invslot::SLOT_BEGIN; index < EQ::invslot::POSSESSIONS_COUNT; ++index)
 	{
@@ -2376,27 +2599,27 @@ bool Client::InterrogateInventory_error(int16 head, int16 index, const EQ::ItemI
 	return false;
 }
 
-void EQ::InventoryProfile::SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, std::string value) {
+void EQ::InventoryProfile::SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, std::string value) {
 	ItemInstance *inst = GetItem(slot_id);
 	if(inst) {
 		inst->SetCustomData(identifier, value);
-		database.SaveInventory(character_id, inst, slot_id);
+		database.SaveInventory(account_id, character_id, inst, slot_id);
 	}
 }
 
-void EQ::InventoryProfile::SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, int value) {
+void EQ::InventoryProfile::SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, int value) {
 	ItemInstance *inst = GetItem(slot_id);
 	if(inst) {
 		inst->SetCustomData(identifier, value);
-		database.SaveInventory(character_id, inst, slot_id);
+		database.SaveInventory(account_id, character_id, inst, slot_id);
 	}
 }
 
-void EQ::InventoryProfile::SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, float value) {
+void EQ::InventoryProfile::SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, bool value) {
 	ItemInstance *inst = GetItem(slot_id);
 	if(inst) {
 		inst->SetCustomData(identifier, value);
-		database.SaveInventory(character_id, inst, slot_id);
+		database.SaveInventory(account_id, character_id, inst, slot_id);
 	}
 }
 

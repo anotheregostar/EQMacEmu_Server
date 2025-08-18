@@ -169,27 +169,37 @@ std::string SharedDatabase::GetMailKey(int CharID, bool key_only)
 		return mail_key;
 }
 
-bool SharedDatabase::SaveInventory(uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id)
+bool SharedDatabase::SaveInventory(uint32 account_id, uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id)
 {
 	if (!inst) // All other inventory
-        return DeleteInventorySlot(char_id, slot_id);
+        return DeleteInventorySlot(account_id, char_id, slot_id);
 
-    return UpdateInventorySlot(char_id, inst, slot_id);
+    return UpdateInventorySlot(account_id, char_id, inst, slot_id);
 }
 
-bool SharedDatabase::UpdateInventorySlot(uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id)
+bool SharedDatabase::UpdateInventorySlot(uint32 account_id, uint32 char_id, const EQ::ItemInstance* inst, int16 slot_id)
 {
+	
     uint16 charges = 0;
 	if(inst->GetCharges() >= 0)
 		charges = inst->GetCharges();
 	else
 		charges = 0x7FFF;
 
+	std::string table = "character_inventory";
+	uint32 id = char_id;
+	if (slot_id >= EQ::invslot::SHARED_BANK_BEGIN && slot_id <= EQ::invbag::SHARED_BANK_BAGS_END)
+	{
+		table = "account_inventory";
+		id = account_id;
+	}
+
 	// Update/Insert item
-	std::string query = StringFormat("REPLACE INTO character_inventory "
+	std::string query = StringFormat("REPLACE INTO %s "
 		"(id, slotid, itemid, charges, custom_data)"
 		" VALUES(%lu,%lu,%lu,%lu,'%s')",
-		(unsigned long)char_id, (unsigned long)slot_id, (unsigned long)inst->GetItem()->ID,
+		table.c_str(),
+		(unsigned long)id, (unsigned long)slot_id, (unsigned long)inst->GetItem()->ID,
 		(unsigned long)charges,
 		inst->GetCustomDataString().c_str());
 	auto results = QueryDatabase(query);
@@ -198,7 +208,7 @@ bool SharedDatabase::UpdateInventorySlot(uint32 char_id, const EQ::ItemInstance*
 	if (inst && inst->IsClassBag() && EQ::InventoryProfile::SupportsContainers(slot_id))
 		for (uint8 idx = EQ::invbag::SLOT_BEGIN; idx <= EQ::invbag::SLOT_END; idx++) {
 			const EQ::ItemInstance* baginst = inst->GetItem(idx);
-			SaveInventory(char_id, baginst, EQ::InventoryProfile::CalcSlotId(slot_id, idx));
+			SaveInventory(account_id, char_id, baginst, EQ::InventoryProfile::CalcSlotId(slot_id, idx));
 		}
 
     if (!results.Success()) {
@@ -208,10 +218,18 @@ bool SharedDatabase::UpdateInventorySlot(uint32 char_id, const EQ::ItemInstance*
 	return true;
 }
 
-bool SharedDatabase::DeleteInventorySlot(uint32 char_id, int16 slot_id) 
+bool SharedDatabase::DeleteInventorySlot(uint32 account_id, uint32 char_id, int16 slot_id)
 {
+	std::string table = "character_inventory";
+	uint32 id = char_id;
+	if (slot_id >= EQ::invslot::SHARED_BANK_BEGIN && slot_id <= EQ::invbag::SHARED_BANK_BAGS_END)
+	{
+		table = "account_inventory";
+		id = account_id;
+	}
+
 	// Delete item
-	std::string query = StringFormat("DELETE FROM character_inventory WHERE id = %i AND slotid = %i", char_id, slot_id);
+	std::string query = StringFormat("DELETE FROM %s WHERE id = %i AND slotid = %i", table.c_str(), id, slot_id);
     auto results = QueryDatabase(query);
     if (!results.Success()) {
         return false;
@@ -222,8 +240,8 @@ bool SharedDatabase::DeleteInventorySlot(uint32 char_id, int16 slot_id)
         return true;
 
     int16 base_slot_id = EQ::InventoryProfile::CalcSlotId(slot_id, EQ::invbag::SLOT_BEGIN);
-    query = StringFormat("DELETE FROM character_inventory WHERE id = %i AND slotid >= %i AND slotid < %i",
-                        char_id, base_slot_id, (base_slot_id+10));
+    query = StringFormat("DELETE FROM %s WHERE id = %i AND slotid >= %i AND slotid < %i",
+                        table.c_str(), id, base_slot_id, (base_slot_id+10));
     results = QueryDatabase(query);
     if (!results.Success()) {
         return false;
@@ -279,11 +297,30 @@ bool SharedDatabase::SetStartingItems(PlayerProfile_Struct* pp, EQ::InventoryPro
 }
 
 // Overloaded: Retrieve character inventory based on character id
-bool SharedDatabase::GetInventory(uint32 char_id, EQ::InventoryProfile* inv)
+bool SharedDatabase::GetInventory(uint32 account_id, uint32 char_id, EQ::InventoryProfile* inv)
 {
+	for(int i = 0; i < 2; i++)
+	{
+		std::string table;
+		unsigned long id;
+		if (i == 0)
+		{
+			table = "character_inventory";
+			id = char_id;
+		}
+		else if (i == 1)
+		{
+			table = "account_inventory";
+			id = account_id;
+		}
+		else
+		{
+			break;
+		}
+
 	// Retrieve character inventory
 	std::string query = StringFormat("SELECT slotid, itemid, charges, custom_data "
-                                    "FROM character_inventory WHERE id = %i ORDER BY slotid", char_id);
+                                    "FROM %s WHERE id = %i ORDER BY slotid", table.c_str(), id);
     auto results = QueryDatabase(query);
     if (!results.Success()) {
         LogError("Error loading character items.");
@@ -356,18 +393,37 @@ bool SharedDatabase::GetInventory(uint32 char_id, EQ::InventoryProfile* inv)
             LogError("Warning: Invalid slot_id for item in inventory: charid={}, item_id={}, slot_id={}",char_id, item_id, slot_id);
         }
     }
-
+	}
 	return true;
 }
 
 // Overloaded: Retrieve character inventory based on account_id and character name
 bool SharedDatabase::GetInventory(uint32 account_id, char* name, EQ::InventoryProfile* inv)
 {
-	// Retrieve character inventory
-	std::string query = StringFormat("SELECT ci.slotid, ci.itemid, ci.charges, ci.custom_data "
-                                    "FROM character_inventory ci INNER JOIN character_data ch "
-                                    "ON ch.id = ci.id WHERE ch.name = '%s' AND ch.account_id = %i ORDER BY ci.slotid",
-                                    name, account_id);
+	for (int i = 0; i < 2; i++)
+	{
+		std::string query;
+		if (i == 0)
+		{
+			// Retrieve character inventory
+			query = StringFormat("SELECT ci.slotid, ci.itemid, ci.charges, ci.custom_data "
+				"FROM character_inventory ci INNER JOIN character_data ch "
+				"ON ch.id = ci.id WHERE ch.name = '%s' AND ch.account_id = %i ORDER BY ci.slotid",
+				name, account_id);
+		}
+		else if (i == 1)
+		{
+			// Retrieve shared bank
+			query = StringFormat("SELECT slotid, itemid, charges, custom_data "
+				"FROM account_inventory "
+				"WHERE id = %i ORDER BY slotid",
+				account_id);
+		}
+		else
+		{
+			break;
+		}
+
     auto results = QueryDatabase(query);
     if (!results.Success()){
 		Log(Logs::General, Logs::Error, "Error loading character items.");
@@ -431,7 +487,7 @@ bool SharedDatabase::GetInventory(uint32 account_id, char* name, EQ::InventoryPr
             Log(Logs::General, Logs::Error, "Warning: Invalid slot_id for item in inventory: name=%s, acctid=%i, item_id=%i, slot_id=%i", name, account_id, item_id, slot_id);
 
     }
-
+	}
 	return true;
 }
 

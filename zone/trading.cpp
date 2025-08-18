@@ -724,7 +724,8 @@ void Client::FinishTrade(Mob *tradingWith, bool finalizer, void *event_entry)
 			EQ::ItemInstance *insts[4] = { 0 };
 			for (int i = EQ::invslot::TRADE_BEGIN; i <= EQ::invslot::TRADE_NPC_END; ++i) {
 				insts[i - EQ::invslot::TRADE_BEGIN] = m_inv.PopItem(i);
-				database.SaveInventory(CharacterID(), nullptr, i);
+				database.SaveInventory(AccountID(), CharacterID(), nullptr, i);
+
 			}
 
 			parse->EventNPC(EVENT_TRADE, tradingWith->CastToNPC(), this, "", 0, &item_list);
