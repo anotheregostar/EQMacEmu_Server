@@ -2623,7 +2623,7 @@ void EQ::InventoryProfile::SetCustomItemData(uint32 account_id, uint32 character
 	}
 }
 
-void EQ::InventoryProfile::SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, bool value) {
+void EQ::InventoryProfile::SetCustomItemData(uint32 account_id, uint32 character_id, int16 slot_id, std::string identifier, bool value) {
 	ItemInstance *inst = GetItem(slot_id);
 	if(inst) {
 		inst->SetCustomData(identifier, value);
