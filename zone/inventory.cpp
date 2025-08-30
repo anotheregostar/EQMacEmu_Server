@@ -1157,7 +1157,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 				int inv_where = ~invWhereUnused & ~invWhereCursor; // Allow Lore Item swap if we're swapping the same item
 				if (CheckLoreConflict(src_inst->GetItem(), inv_where))
 				{
-					Message_StringID(Chat::Red, PICK_LORE);
+					Message_StringID(Chat::Red, StringID::PICK_LORE);
 					return false;
 				}
 				if (src_inst->IsClassBag())
@@ -1167,7 +1167,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 						EQ::ItemInstance* contents_i = src_inst->GetItem(i);
 						if (contents_i && contents_i->GetItem() && CheckLoreConflict(contents_i->GetItem(), inv_where))
 						{
-							Message_StringID(Chat::Red, PICK_LORE);
+							Message_StringID(Chat::Red, StringID::PICK_LORE);
 							return false;
 						}
 					}
@@ -1253,7 +1253,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 				int inv_where = ~invWhereUnused & ~invWhereCursor; // Allow Lore Item swap if we're swapping the same item
 				if (CheckLoreConflict(dst_inst->GetItem(), inv_where))
 				{
-					Message_StringID(Chat::Red, PICK_LORE);
+					Message_StringID(Chat::Red, StringID::PICK_LORE);
 					return false;
 				}
 				if (dst_inst->IsClassBag())
@@ -1263,7 +1263,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 						EQ::ItemInstance* contents_i = dst_inst->GetItem(i);
 						if (contents_i && contents_i->GetItem() && CheckLoreConflict(contents_i->GetItem(), inv_where))
 						{
-							Message_StringID(Chat::Red, PICK_LORE);
+							Message_StringID(Chat::Red, StringID::PICK_LORE);
 							return false;
 						}
 					}
@@ -1742,7 +1742,7 @@ bool Client::SwapItem(MoveItem_Struct* move_in) {
 	} 
 	else
 	{
-		database.SaveInventory(account_id, character_id, dst_item_instance, dst_slot_id);
+		database.SaveInventory(account_id, character_id, dst_inst, dst_slot_id);
 
 		// When we have a bag on the cursor filled with items that is new (zoned with it, summoned it, picked it up from the ground)
 		// the client is only aware of the bag. So, we have to send packets for each item within the bag once it is placed in the inventory.
@@ -2409,7 +2409,7 @@ bool Client::InterrogateInventory(Client* requester, bool log, bool silent, bool
 		return false;
 
 	std::map<int16, const EQ::ItemInstance*> instmap;
-void EQ::InventoryProfile::SetCustomItemData(uint32 character_id, int16 slot_id, std::string identifier, std::string value) {
+
 	// build reference map
 	for (int16 index = EQ::invslot::SLOT_BEGIN; index < EQ::invslot::POSSESSIONS_COUNT; ++index)
 	{
